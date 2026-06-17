@@ -25,6 +25,7 @@ const state = {
   editingId:   null,
   searchOpen:  false,
   selColor:    CAT_COLORS[0],
+  user:        null,
 };
 
 // ── STORAGE ────────────────────────────────────────────────────────
@@ -41,6 +42,44 @@ function loadData() {
 
 function saveItems() { localStorage.setItem(STORAGE_ITEMS, JSON.stringify(state.items)); }
 function saveCats()  { localStorage.setItem(STORAGE_CATS,  JSON.stringify(state.categories)); }
+
+// ── USER SELECTION ─────────────────────────────────────────────────
+
+function selectUser(name) {
+  state.user = name;
+  localStorage.setItem('uauu_inv_user', name);
+
+  document.getElementById('user-pill-name').textContent = name;
+
+  const screen = document.getElementById('screen-users');
+  screen.classList.add('leaving');
+  setTimeout(() => { screen.hidden = true; }, 400);
+}
+
+function showUserScreen() {
+  state.user = null;
+  localStorage.removeItem('uauu_inv_user');
+  document.getElementById('user-pill-name').textContent = '';
+
+  const screen = document.getElementById('screen-users');
+  screen.hidden = false;
+  // force reflow so transition plays
+  screen.classList.remove('leaving');
+  void screen.offsetWidth;
+}
+
+function initUserScreen() {
+  const saved = localStorage.getItem('uauu_inv_user');
+  if (saved) {
+    selectUser(saved);
+  }
+
+  document.querySelectorAll('.user-card[data-user]').forEach(card => {
+    card.addEventListener('click', () => selectUser(card.dataset.user));
+  });
+
+  document.getElementById('btn-switch-user').addEventListener('click', showUserScreen);
+}
 
 // ── HELPERS ────────────────────────────────────────────────────────
 
@@ -541,6 +580,7 @@ function toggleSearch() {
 function init() {
   loadData();
   render();
+  initUserScreen();
 
   document.getElementById('btn-search').addEventListener('click', toggleSearch);
 
