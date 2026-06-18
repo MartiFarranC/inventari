@@ -2,10 +2,13 @@
 
 // ── CONSTANTS ──────────────────────────────────────────────────────
 
-const CATALOG_URL    = 'https://docs.google.com/spreadsheets/d/1Vc3X0RI50pBOQpJUlLwSywAR9twlG4dSaoqONnRf2Ck/export?format=csv&gid=0';
-const STORAGE_ITEMS  = 'uauu_inv_items';
-const STORAGE_CATS   = 'uauu_inv_cats';
-const STORAGE_ORDERS = 'uauu_inv_orders';
+const CATALOG_URL         = 'https://docs.google.com/spreadsheets/d/1Vc3X0RI50pBOQpJUlLwSywAR9twlG4dSaoqONnRf2Ck/export?format=csv&gid=0';
+// URL del Google Apps Script per afegir files al full. Deixa buit si no s'ha configurat.
+const SHEET_APPEND_URL    = '';
+const STORAGE_ITEMS       = 'uauu_inv_items';
+const STORAGE_CATS        = 'uauu_inv_cats';
+const STORAGE_ORDERS      = 'uauu_inv_orders';
+const STORAGE_CAT_EXTRA   = 'uauu_inv_catalog_extra';
 
 const STATUS_LABELS = {
   pendent:      'Pendent',
@@ -49,19 +52,23 @@ const state = {
   editingOrderId: null,
   importRows:  [],
   editingCatalogIdx: null,
+  catalogExtra: [],
+  maxCatalogId: 0,
 };
 
 // ── STORAGE ────────────────────────────────────────────────────────
 
 function loadData() {
   try {
-    state.items      = JSON.parse(localStorage.getItem(STORAGE_ITEMS))  || [];
-    state.categories = JSON.parse(localStorage.getItem(STORAGE_CATS))   || [...DEFAULT_CATS];
-    state.orders     = JSON.parse(localStorage.getItem(STORAGE_ORDERS)) || [];
+    state.items        = JSON.parse(localStorage.getItem(STORAGE_ITEMS))     || [];
+    state.categories   = JSON.parse(localStorage.getItem(STORAGE_CATS))      || [...DEFAULT_CATS];
+    state.orders       = JSON.parse(localStorage.getItem(STORAGE_ORDERS))    || [];
+    state.catalogExtra = JSON.parse(localStorage.getItem(STORAGE_CAT_EXTRA)) || [];
   } catch {
-    state.items      = [];
-    state.categories = [...DEFAULT_CATS];
-    state.orders     = [];
+    state.items        = [];
+    state.categories   = [...DEFAULT_CATS];
+    state.orders       = [];
+    state.catalogExtra = [];
   }
 }
 
@@ -82,9 +89,11 @@ function applyRole(name) {
   const role = ROLE_MAP[name] || 'comensal';
   document.body.dataset.role = role;
 
-  // Import button: only admin
+  // Botons exclusius admin
   const importBtn = document.getElementById('btn-import-excel');
+  const gasBtn    = document.getElementById('btn-gas-config');
   if (importBtn) importBtn.hidden = (role !== 'admin');
+  if (gasBtn)    gasBtn.hidden    = (role !== 'admin');
 
   // Default view
   if (role === 'comensal') {
@@ -140,6 +149,7 @@ async function loadCatalog() {
     if (rows.length < 2) return;
 
     const headers = rows[0].map(h => String(h).toLowerCase().trim());
+    const iId    = headers.indexOf('id');
     const iName  = findCol(headers, ['producte', 'nom', 'name', 'article']);
     const iCat   = findCol(headers, ['categoria', 'category', 'cat']);
     const iPrice = findCol(headers, ['preu', 'price', 'cost']);
@@ -148,14 +158,27 @@ async function loadCatalog() {
     state.catalog = rows.slice(1)
       .filter(r => String(r[iName] ?? '').trim())
       .map(r => ({
+        id:       parseInt(String(r[iId] ?? '0')) || 0,
         name:     String(r[iName]  ?? '').trim(),
         category: String(r[iCat]   ?? '').trim(),
         price:    parseFloat(String(r[iPrice] ?? '0').replace(',', '.')) || 0,
         supplier: String(r[iSupp]  ?? '').trim(),
       }));
+
+    state.maxCatalogId = state.catalog.reduce((max, p) => Math.max(max, p.id || 0), 0);
     state.catalogReady = true;
   } catch {
-    /* offline o sheet privat — autocomplete desactivat */
+    /* offline o sheet privat */
+  }
+
+  // Afegeix productes creats localment que no estiguin ja al full
+  if (state.catalogExtra.length > 0) {
+    const sheetNames = new Set(state.catalog.map(p => p.name.toLowerCase()));
+    const fresh = state.catalogExtra.filter(p => !sheetNames.has(p.name.toLowerCase()));
+    state.catalog = [...state.catalog, ...fresh];
+    // Actualitza el maxId pels productes extra
+    fresh.forEach(p => { if ((p.id || 0) > state.maxCatalogId) state.maxCatalogId = p.id; });
+    if (fresh.length > 0) state.catalogReady = true;
   }
 }
 
@@ -377,6 +400,93 @@ function saveQty() {
   saveItems();
   closeQtyModal();
   toast(`${product.name}: ${fmtNum(qty)} u`);
+  renderCatalogView();
+}
+
+// ── CONFIGURACIÓ GAS (Admin) ───────────────────────────────────────
+
+function openGasModal() {
+  const saved = localStorage.getItem('uauu_inv_gas_url') || '';
+  document.getElementById('f-gas-url').value = saved;
+  document.getElementById('modal-gas').classList.add('open');
+  setTimeout(() => document.getElementById('f-gas-url').focus(), 380);
+}
+
+function closeGasModal() {
+  document.getElementById('modal-gas').classList.remove('open');
+}
+
+function saveGasUrl() {
+  const url = document.getElementById('f-gas-url').value.trim();
+  if (url) {
+    localStorage.setItem('uauu_inv_gas_url', url);
+    toast('URL desada correctament');
+  } else {
+    localStorage.removeItem('uauu_inv_gas_url');
+    toast('URL eliminada');
+  }
+  closeGasModal();
+}
+
+// ── NOU PRODUCTE (Comensal) ────────────────────────────────────────
+
+function openNewProductModal() {
+  document.getElementById('f-np-name').value     = '';
+  document.getElementById('f-np-category').value = '';
+  document.getElementById('f-np-supplier').value = '';
+  document.getElementById('f-np-price').value    = '';
+  document.getElementById('modal-new-product').classList.add('open');
+  setTimeout(() => document.getElementById('f-np-name').focus(), 380);
+}
+
+function closeNewProductModal() {
+  document.getElementById('modal-new-product').classList.remove('open');
+}
+
+async function saveNewProduct() {
+  const name     = document.getElementById('f-np-name').value.trim();
+  const category = document.getElementById('f-np-category').value.trim();
+  const supplier = document.getElementById('f-np-supplier').value.trim();
+  const price    = parseFloat(document.getElementById('f-np-price').value) || 0;
+
+  if (!name) {
+    const el = document.getElementById('f-np-name');
+    el.focus();
+    el.style.borderColor = 'rgba(176,32,32,0.5)';
+    setTimeout(() => { el.style.borderColor = ''; }, 1200);
+    return;
+  }
+
+  // ID = últim ID del full + 1
+  state.maxCatalogId++;
+  const newId = state.maxCatalogId;
+
+  const product = { id: newId, name, category, supplier, price };
+
+  // Desa localment
+  state.catalog.push(product);
+  state.catalogExtra.push(product);
+  localStorage.setItem(STORAGE_CAT_EXTRA, JSON.stringify(state.catalogExtra));
+
+  // Envia al Google Sheet
+  const gasUrl = localStorage.getItem('uauu_inv_gas_url') || SHEET_APPEND_URL;
+  if (gasUrl) {
+    try {
+      // mode no-cors: no es pot usar Content-Type: application/json (no és un header "simple")
+      await fetch(gasUrl, {
+        method: 'POST',
+        mode:   'no-cors',
+        body: JSON.stringify({ id: newId, producte: name, proveidor: supplier, preu: price, categoria: category }),
+      });
+      toast(`"${name}" afegit i enviat al full`);
+    } catch {
+      toast(`"${name}" desat localment (sense connexió)`);
+    }
+  } else {
+    toast(`"${name}" desat localment — configura l'Apps Script per sincronitzar`);
+  }
+
+  closeNewProductModal();
   renderCatalogView();
 }
 
@@ -747,6 +857,9 @@ function renderNav() {
   } else if (state.view === 'list') {
     fab.hidden = false;
     fabLabel.textContent = 'Nou article';
+  } else if (state.view === 'catalog') {
+    fab.hidden = false;
+    fabLabel.textContent = 'Nou producte';
   } else {
     fab.hidden = true;
   }
@@ -1177,7 +1290,9 @@ document.addEventListener('click', e => {
   if (e.target.id === 'modal-cat')    { closeCatModal();    return; }
   if (e.target.id === 'modal-order')  { closeOrderModal();  return; }
   if (e.target.id === 'modal-import') { closeImportModal(); return; }
-  if (e.target.id === 'modal-qty')    { closeQtyModal();    return; }
+  if (e.target.id === 'modal-qty')          { closeQtyModal();         return; }
+  if (e.target.id === 'modal-new-product')  { closeNewProductModal();   return; }
+  if (e.target.id === 'modal-gas')          { closeGasModal();          return; }
 });
 
 // ── KEYBOARD ───────────────────────────────────────────────────────
@@ -1188,7 +1303,9 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('modal-cat').classList.contains('open'))    { closeCatModal();    return; }
     if (document.getElementById('modal-order').classList.contains('open'))  { closeOrderModal();  return; }
     if (document.getElementById('modal-import').classList.contains('open')) { closeImportModal(); return; }
-    if (document.getElementById('modal-qty').classList.contains('open'))    { closeQtyModal();    return; }
+    if (document.getElementById('modal-qty').classList.contains('open'))           { closeQtyModal();          return; }
+    if (document.getElementById('modal-new-product').classList.contains('open'))  { closeNewProductModal();    return; }
+    if (document.getElementById('modal-gas').classList.contains('open'))          { closeGasModal();           return; }
     if (state.searchOpen) toggleSearch();
   }
 });
@@ -1222,9 +1339,10 @@ function init() {
     renderItems();
   });
 
-  // FAB — obre modal d'article o de comanda segons la vista activa
+  // FAB — obre modal segons la vista activa
   document.getElementById('btn-add').addEventListener('click', () => {
-    if (state.view === 'orders') openOrderModal();
+    if (state.view === 'orders')  openOrderModal();
+    else if (state.view === 'catalog') openNewProductModal();
     else openItemModal();
   });
 
@@ -1244,6 +1362,17 @@ function init() {
   document.getElementById('btn-save-order').addEventListener('click', saveOrder);
   document.getElementById('btn-delete-order').addEventListener('click', deleteOrder);
   document.getElementById('order-form').addEventListener('submit', e => { e.preventDefault(); saveOrder(); });
+
+  // Modal configuració GAS (Admin)
+  document.getElementById('btn-gas-config').addEventListener('click', openGasModal);
+  document.getElementById('btn-gas-close').addEventListener('click', closeGasModal);
+  document.getElementById('btn-save-gas').addEventListener('click', saveGasUrl);
+  document.getElementById('gas-form').addEventListener('submit', e => { e.preventDefault(); saveGasUrl(); });
+
+  // Modal nou producte (Comensal)
+  document.getElementById('btn-np-close').addEventListener('click', closeNewProductModal);
+  document.getElementById('btn-save-new-product').addEventListener('click', saveNewProduct);
+  document.getElementById('new-product-form').addEventListener('submit', e => { e.preventDefault(); saveNewProduct(); });
 
   // Modal quantitat (Comensal)
   document.getElementById('btn-qty-close').addEventListener('click', closeQtyModal);

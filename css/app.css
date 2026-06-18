@@ -1519,6 +1519,28 @@ body[data-role="admin"]       .role-admin-only.icon-btn  { display: flex !import
   text-overflow: ellipsis;
 }
 
+/* ── GAS CONFIG MODAL ────────────────────────────────────────────── */
+
+.gas-script-hint {
+  font-size: 12px;
+  color: rgba(34,31,30,0.5);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.gas-code {
+  background: rgba(34,31,30,0.05);
+  border: 1px solid rgba(34,31,30,0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: monospace;
+  font-size: 11px;
+  color: rgba(34,31,30,0.75);
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
 /* ── UTILS ───────────────────────────────────────────────────────── */
 
 [hidden] { display: none !important; }
