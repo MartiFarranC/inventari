@@ -2,6 +2,7 @@
 
 // ── CONSTANTS ──────────────────────────────────────────────────────
 
+const CATALOG_URL    = 'https://docs.google.com/spreadsheets/d/1Vc3X0RI50pBOQpJUlLwSywAR9twlG4dSaoqONnRf2Ck/export?format=csv&gid=0';
 const STORAGE_ITEMS  = 'uauu_inv_items';
 const STORAGE_CATS   = 'uauu_inv_cats';
 const STORAGE_ORDERS = 'uauu_inv_orders';
@@ -41,10 +42,13 @@ const state = {
   searchOpen:  false,
   selColor:    CAT_COLORS[0],
   user:        null,
+  catalog:     [],
+  catalogReady: false,
   orders:      [],
   orderFilter: '',
   editingOrderId: null,
   importRows:  [],
+  editingCatalogIdx: null,
 };
 
 // ── STORAGE ────────────────────────────────────────────────────────
@@ -68,13 +72,14 @@ function saveOrders() { localStorage.setItem(STORAGE_ORDERS, JSON.stringify(stat
 // ── USER SELECTION & ROLE ──────────────────────────────────────────
 
 const ROLE_MAP = {
-  'Começal':     'comencal',
+  'Comensal':    'comensal',
+  'Começal':     'comensal', // backwards compat amb sessions antigues
   'Coordinador': 'coordinador',
   'Admin':       'admin',
 };
 
 function applyRole(name) {
-  const role = ROLE_MAP[name] || 'comencal';
+  const role = ROLE_MAP[name] || 'comensal';
   document.body.dataset.role = role;
 
   // Import button: only admin
@@ -82,8 +87,8 @@ function applyRole(name) {
   if (importBtn) importBtn.hidden = (role !== 'admin');
 
   // Default view
-  if (role === 'comencal') {
-    setView('list');
+  if (role === 'comensal') {
+    setView('catalog');
   } else {
     setView('orders');
   }
@@ -122,6 +127,257 @@ function initUserScreen() {
   });
 
   document.getElementById('btn-switch-user').addEventListener('click', showUserScreen);
+}
+
+// ── CATALOG AUTOCOMPLETE ───────────────────────────────────────────
+
+async function loadCatalog() {
+  if (state.catalogReady) return;
+  try {
+    const res  = await fetch(CATALOG_URL);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) return;
+
+    const headers = rows[0].map(h => String(h).toLowerCase().trim());
+    const iName  = findCol(headers, ['producte', 'nom', 'name', 'article']);
+    const iCat   = findCol(headers, ['categoria', 'category', 'cat']);
+    const iPrice = findCol(headers, ['preu', 'price', 'cost']);
+    const iSupp  = findCol(headers, ['proveidor', 'proveedor', 'proveïdor', 'supplier', 'prove']);
+
+    state.catalog = rows.slice(1)
+      .filter(r => String(r[iName] ?? '').trim())
+      .map(r => ({
+        name:     String(r[iName]  ?? '').trim(),
+        category: String(r[iCat]   ?? '').trim(),
+        price:    parseFloat(String(r[iPrice] ?? '0').replace(',', '.')) || 0,
+        supplier: String(r[iSupp]  ?? '').trim(),
+      }));
+    state.catalogReady = true;
+  } catch {
+    /* offline o sheet privat — autocomplete desactivat */
+  }
+}
+
+let _ddResults = [];
+let _ddIdx     = -1;
+
+function highlightMatch(text, query) {
+  if (!query) return esc(text);
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return esc(text).replace(re, '<mark>$1</mark>');
+}
+
+function openProductDropdown(results, query) {
+  _ddResults = results;
+  _ddIdx     = -1;
+  const dd = document.getElementById('product-dropdown');
+  if (!dd) return;
+
+  if (results.length === 0) {
+    dd.innerHTML = `<p class="product-dd-empty">Sense coincidències</p>`;
+    dd.hidden = false;
+    return;
+  }
+
+  dd.innerHTML = results.map((p, i) => `
+    <div class="product-dd-item" data-dd="${i}" role="option" tabindex="-1">
+      <span class="product-dd-name">${highlightMatch(p.name, query)}</span>
+      ${p.category ? `<span class="product-dd-cat">${esc(p.category)}</span>` : ''}
+    </div>
+  `).join('');
+  dd.hidden = false;
+}
+
+function closeProductDropdown() {
+  const dd = document.getElementById('product-dropdown');
+  if (dd) dd.hidden = true;
+  _ddResults = [];
+  _ddIdx     = -1;
+}
+
+function moveDDHighlight(dir) {
+  _ddIdx = Math.max(-1, Math.min(_ddIdx + dir, _ddResults.length - 1));
+  document.querySelectorAll('.product-dd-item').forEach((el, i) => {
+    el.classList.toggle('is-active', i === _ddIdx);
+    if (i === _ddIdx) el.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function ensureCategory(name) {
+  if (!name) return state.categories[0]?.id || 'cat_general';
+  let cat = state.categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+  if (!cat) {
+    cat = { id: 'cat_' + uid(), name, color: CAT_COLORS[state.categories.length % CAT_COLORS.length] };
+    state.categories.push(cat);
+    saveCats();
+  }
+  return cat.id;
+}
+
+function selectCatalogProduct(product) {
+  document.getElementById('f-name').value = product.name;
+
+  const catId = ensureCategory(product.category);
+  const catSel = document.getElementById('f-category');
+  catSel.innerHTML = state.categories
+    .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  catSel.value = catId;
+
+  if (product.price) document.getElementById('f-price').value = product.price;
+
+  closeProductDropdown();
+  document.getElementById('f-quantity').focus();
+}
+
+function initCatalogSearch() {
+  const input = document.getElementById('f-name');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    if (!state.catalogReady) {
+      if (q.length >= 2) {
+        const dd = document.getElementById('product-dropdown');
+        dd.innerHTML = `<p class="product-dd-loading">Carregant catàleg…</p>`;
+        dd.hidden = false;
+        loadCatalog().then(() => {
+          const results = state.catalog.filter(p =>
+            p.name.toLowerCase().includes(q.toLowerCase())
+          ).slice(0, 8);
+          openProductDropdown(results, q);
+        });
+      }
+      return;
+    }
+    if (q.length < 2) { closeProductDropdown(); return; }
+    const results = state.catalog
+      .filter(p => p.name.toLowerCase().includes(q.toLowerCase()))
+      .slice(0, 8);
+    openProductDropdown(results, q);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (_ddResults.length === 0) return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); moveDDHighlight(1);  return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); moveDDHighlight(-1); return; }
+    if (e.key === 'Enter' && _ddIdx >= 0) { e.preventDefault(); selectCatalogProduct(_ddResults[_ddIdx]); return; }
+    if (e.key === 'Escape')     { closeProductDropdown(); }
+  });
+
+  // Dropdown item click
+  document.getElementById('product-dropdown').addEventListener('mousedown', e => {
+    const item = e.target.closest('.product-dd-item[data-dd]');
+    if (item) {
+      e.preventDefault(); // evita que l'input perdi el focus
+      selectCatalogProduct(_ddResults[parseInt(item.dataset.dd)]);
+    }
+  });
+
+  // Close on outside click
+  document.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.product-search-wrap')) closeProductDropdown();
+  }, true);
+}
+
+// ── CATALOG VIEW (Comensal) ────────────────────────────────────────
+
+function renderCatalogView() {
+  const panel = document.getElementById('view-catalog');
+  if (!panel) return;
+
+  if (!state.catalogReady) {
+    panel.innerHTML = '<div class="catalog-loading">Carregant catàleg…</div>';
+    loadCatalog()
+      .then(() => renderCatalogView())
+      .catch(() => {
+        panel.innerHTML = '<div class="catalog-empty">No s\'ha pogut carregar el catàleg.<br>Comprova la connexió a internet.</div>';
+      });
+    return;
+  }
+
+  if (state.catalog.length === 0) {
+    panel.innerHTML = '<div class="catalog-empty">Cap producte al catàleg.</div>';
+    return;
+  }
+
+  // Group by category preserving sheet order
+  const groups = new Map();
+  state.catalog.forEach((p, i) => {
+    const cat = p.category || 'Sense categoria';
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push({ p, i });
+  });
+
+  const html = ['<div class="catalog-list">'];
+  groups.forEach((entries, catName) => {
+    html.push(`<div class="catalog-section-title">${esc(catName)}</div>`);
+    entries.forEach(({ p, i }) => {
+      const existing = state.items.find(item => item.name.toLowerCase() === p.name.toLowerCase());
+      const qty = existing != null ? fmtNum(existing.quantity) : '';
+      html.push(`
+        <button class="catalog-btn" data-catalog="${i}">
+          <span class="catalog-btn-name">${esc(p.name)}</span>
+          <span class="catalog-btn-qty${qty ? ' has-qty' : ''}">${qty || '—'}</span>
+        </button>
+      `);
+    });
+  });
+  html.push('</div>');
+  panel.innerHTML = html.join('');
+}
+
+function openQtyModal(idx) {
+  const product = state.catalog[idx];
+  if (!product) return;
+  state.editingCatalogIdx = idx;
+
+  const existing = state.items.find(i => i.name.toLowerCase() === product.name.toLowerCase());
+  const currentQty = existing != null ? existing.quantity : '';
+
+  document.getElementById('modal-qty-title').textContent = product.name;
+  const input = document.getElementById('f-qty-value');
+  input.value = currentQty !== '' ? currentQty : '';
+
+  document.getElementById('modal-qty').classList.add('open');
+  setTimeout(() => { input.focus(); input.select(); }, 350);
+}
+
+function closeQtyModal() {
+  document.getElementById('modal-qty').classList.remove('open');
+  state.editingCatalogIdx = null;
+}
+
+function saveQty() {
+  const product = state.catalog[state.editingCatalogIdx];
+  if (!product) return;
+
+  const val = document.getElementById('f-qty-value').value;
+  const qty = parseFloat(val);
+  if (val === '' || isNaN(qty) || qty < 0) {
+    document.getElementById('f-qty-value').focus();
+    return;
+  }
+
+  const catId = ensureCategory(product.category);
+  const existing = state.items.find(i => i.name.toLowerCase() === product.name.toLowerCase());
+
+  if (existing) {
+    existing.quantity  = qty;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    state.items.unshift({
+      id: uid(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      name: product.name, category: catId,
+      quantity: qty, unit: '', minStock: 0,
+      price: product.price || 0, notes: '',
+    });
+  }
+
+  saveItems();
+  closeQtyModal();
+  toast(`${product.name}: ${fmtNum(qty)} u`);
+  renderCatalogView();
 }
 
 // ── ORDERS ─────────────────────────────────────────────────────────
@@ -265,10 +521,28 @@ function loadSheetJS() {
 
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
   const delim = lines[0].includes(';') ? ';' : ',';
-  return lines.map(l =>
-    l.split(delim).map(c => c.trim().replace(/^"|"$/g, ''))
-  );
+
+  return lines.map(line => {
+    const cells = [];
+    let inQuote = false;
+    let cell = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cell += '"'; i++; } // "" escaped quote
+        else inQuote = !inQuote;
+      } else if (ch === delim && !inQuote) {
+        cells.push(cell.trim());
+        cell = '';
+      } else {
+        cell += ch;
+      }
+    }
+    cells.push(cell.trim());
+    return cells;
+  });
 }
 
 function findCol(headers, candidates) {
@@ -357,16 +631,7 @@ function confirmImport() {
   let updated = 0;
 
   state.importRows.forEach(row => {
-    // Find or create category
-    let catId = 'cat_general';
-    if (row.category) {
-      let cat = state.categories.find(c => c.name.toLowerCase() === row.category.toLowerCase());
-      if (!cat) {
-        cat = { id: 'cat_' + uid(), name: row.category, color: CAT_COLORS[state.categories.length % CAT_COLORS.length] };
-        state.categories.push(cat);
-      }
-      catId = cat.id;
-    }
+    const catId = ensureCategory(row.category);
 
     // Check if item already exists (by name, case-insensitive)
     const existing = state.items.find(i => i.name.toLowerCase() === row.name.toLowerCase());
@@ -829,9 +1094,10 @@ function updateQty(id, delta) {
 function setView(view) {
   state.view = view;
   renderNav();
-  if (view === 'stats')  renderStats();
-  if (view === 'cats')   renderCats();
-  if (view === 'orders') renderOrders();
+  if (view === 'stats')   renderStats();
+  if (view === 'cats')    renderCats();
+  if (view === 'orders')  renderOrders();
+  if (view === 'catalog') renderCatalogView();
 }
 
 // ── EVENT DELEGATION ───────────────────────────────────────────────
@@ -899,11 +1165,19 @@ document.addEventListener('click', e => {
     return;
   }
 
+  // Catalog product button
+  const catalogBtn = e.target.closest('.catalog-btn[data-catalog]');
+  if (catalogBtn) {
+    openQtyModal(parseInt(catalogBtn.dataset.catalog));
+    return;
+  }
+
   // Backdrop close for all modals
   if (e.target.id === 'modal-item')   { closeItemModal();   return; }
   if (e.target.id === 'modal-cat')    { closeCatModal();    return; }
   if (e.target.id === 'modal-order')  { closeOrderModal();  return; }
   if (e.target.id === 'modal-import') { closeImportModal(); return; }
+  if (e.target.id === 'modal-qty')    { closeQtyModal();    return; }
 });
 
 // ── KEYBOARD ───────────────────────────────────────────────────────
@@ -914,6 +1188,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('modal-cat').classList.contains('open'))    { closeCatModal();    return; }
     if (document.getElementById('modal-order').classList.contains('open'))  { closeOrderModal();  return; }
     if (document.getElementById('modal-import').classList.contains('open')) { closeImportModal(); return; }
+    if (document.getElementById('modal-qty').classList.contains('open'))    { closeQtyModal();    return; }
     if (state.searchOpen) toggleSearch();
   }
 });
@@ -940,7 +1215,7 @@ function init() {
   render();
   initUserScreen();
 
-  // Search (Começal only)
+  // Search (Comensal only)
   document.getElementById('btn-search').addEventListener('click', toggleSearch);
   document.getElementById('search-input').addEventListener('input', e => {
     state.search = e.target.value.trim();
@@ -969,6 +1244,11 @@ function init() {
   document.getElementById('btn-save-order').addEventListener('click', saveOrder);
   document.getElementById('btn-delete-order').addEventListener('click', deleteOrder);
   document.getElementById('order-form').addEventListener('submit', e => { e.preventDefault(); saveOrder(); });
+
+  // Modal quantitat (Comensal)
+  document.getElementById('btn-qty-close').addEventListener('click', closeQtyModal);
+  document.getElementById('btn-save-qty').addEventListener('click', saveQty);
+  document.getElementById('qty-form').addEventListener('submit', e => { e.preventDefault(); saveQty(); });
 
   // Modal importació
   document.getElementById('btn-import-excel').addEventListener('click', openImportModal);
@@ -1013,6 +1293,10 @@ function init() {
       document.getElementById('btn-confirm-import').hidden = true;
     }
   });
+
+  // Carrega el catàleg de productes en segon pla
+  loadCatalog();
+  initCatalogSearch();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

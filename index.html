@@ -33,8 +33,8 @@
 
       <div class="users-grid">
 
-        <!-- Começal -->
-        <button class="user-card" data-user="Começal">
+        <!-- Comensal -->
+        <button class="user-card" data-user="Comensal">
           <div class="user-card-icon">
             <svg width="52" height="52" viewBox="0 0 60 60" fill="none" aria-hidden="true">
               <!-- seedling: stem -->
@@ -49,7 +49,7 @@
                     fill="rgba(255,255,255,0.07)"/>
             </svg>
           </div>
-          <span class="user-card-name">Començal</span>
+          <span class="user-card-name">Comensal</span>
           <span class="user-card-role">Gestió bàsica</span>
         </button>
 
@@ -118,7 +118,7 @@
             <path d="M12 18v-6M9 15l3 3 3-3"/>
           </svg>
         </button>
-        <button class="icon-btn role-comencal-only" id="btn-search" aria-label="Cerca">
+        <button class="icon-btn role-comensal-only" id="btn-search" aria-label="Cerca">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
@@ -160,6 +160,9 @@
       <div class="stats-view" id="stats-content"></div>
     </div>
 
+    <!-- VIEW: CATÀLEG (Comensal) -->
+    <div id="view-catalog" class="view-panel" hidden></div>
+
     <!-- VIEW: COMANDES (Coordinador + Admin) -->
     <div id="view-orders" class="view-panel" hidden>
       <div class="orders-filter-strip" id="orders-filter-strip">
@@ -191,15 +194,15 @@
 
   <!-- ── BOTTOM NAV ── -->
   <nav class="bottom-nav" aria-label="Navegació principal">
-    <!-- Tabs Começal -->
-    <button class="nav-tab active role-comencal-only" data-view="list" aria-label="Articles">
+    <!-- Tabs Comensal -->
+    <button class="nav-tab active role-comensal-only" data-view="catalog" aria-label="Articles">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
         <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
       </svg>
       Articles
     </button>
-    <button class="nav-tab role-comencal-only" data-view="cats" aria-label="Categories">
+    <button class="nav-tab role-comensal-only" data-view="cats" aria-label="Categories">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="5" cy="6" r="1.5" fill="currentColor" stroke="none"/>
         <path d="M10 6h10M10 12h10M10 18h6"/>
@@ -208,7 +211,7 @@
       </svg>
       Categories
     </button>
-    <button class="nav-tab role-comencal-only" data-view="stats" aria-label="Resum">
+    <button class="nav-tab role-comensal-only" data-view="stats" aria-label="Resum">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 20V10M12 20V4M6 20v-6"/>
       </svg>
@@ -237,21 +240,22 @@
         </button>
       </div>
       <form class="modal-form" id="item-form" autocomplete="off" novalidate>
-        <div class="form-field">
+        <div class="form-field product-search-wrap">
           <label class="form-label" for="f-name">Nom *</label>
-          <input class="form-input" id="f-name" type="text" placeholder="Nom de l'article" required>
+          <input class="form-input" id="f-name" type="text" placeholder="Nom de l'article" required autocomplete="off">
+          <div class="product-dropdown" id="product-dropdown" hidden role="listbox" aria-label="Suggeriments de productes"></div>
         </div>
-        <div class="form-row">
+        <div class="form-row row-qty-unit">
           <div class="form-field">
             <label class="form-label" for="f-quantity">Quantitat</label>
             <input class="form-input" id="f-quantity" type="number" min="0" step="any" placeholder="0">
           </div>
-          <div class="form-field">
+          <div class="form-field field-unit">
             <label class="form-label" for="f-unit">Unitat</label>
             <input class="form-input" id="f-unit" type="text" placeholder="u, kg, l…">
           </div>
         </div>
-        <div class="form-row">
+        <div class="form-row row-adv">
           <div class="form-field">
             <label class="form-label" for="f-min-stock">Estoc mínim</label>
             <input class="form-input" id="f-min-stock" type="number" min="0" step="any" placeholder="—">
@@ -396,6 +400,30 @@
       </div>
       <div class="form-actions">
         <button class="btn-primary" id="btn-confirm-import" hidden>Importar articles</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL: QUANTITAT (Comensal) ── -->
+  <div class="modal-overlay" id="modal-qty" role="dialog" aria-modal="true" aria-labelledby="modal-qty-title">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-header">
+        <h2 class="modal-title modal-qty-title" id="modal-qty-title"></h2>
+        <button class="modal-close" id="btn-qty-close" aria-label="Tancar">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form class="modal-form" id="qty-form" autocomplete="off" novalidate>
+        <div class="form-field">
+          <label class="form-label" for="f-qty-value">Nombre d'unitats</label>
+          <input class="form-input qty-big-input" id="f-qty-value" type="number" min="0" step="1" placeholder="0" inputmode="numeric">
+        </div>
+      </form>
+      <div class="form-actions">
+        <button class="btn-primary" id="btn-save-qty">Desar</button>
       </div>
     </div>
   </div>
