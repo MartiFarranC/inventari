@@ -12,21 +12,18 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="src/assets/icons/icon.svg">
   <link rel="icon" href="src/assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="src/assets/css/app.css">
 </head>
 <body>
 
   <!-- ── PANTALLA SELECCIÓ D'USUARI ── -->
   <div id="screen-users">
+    <img src="src/assets/logo-uauu-black.png" alt="Uauu Digital" class="users-brand-logo">
+
     <div class="users-inner">
 
       <div class="users-heading-wrap">
-        <svg width="36" height="36" viewBox="0 0 28 28" fill="none" class="users-logo" aria-hidden="true">
-          <rect x="3" y="9" width="22" height="16" rx="2.5" stroke="white" stroke-width="1.5"/>
-          <path d="M3 14h22" stroke="white" stroke-width="1.5"/>
-          <path d="M10 14V9a4 4 0 018 0v5" stroke="white" stroke-width="1.5" fill="none"/>
-          <path d="M11 19h6" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
         <h1 class="users-title">Qui ets?</h1>
         <p class="users-sub">Selecciona el teu perfil per continuar</p>
       </div>
@@ -90,6 +87,43 @@
           <span class="user-card-role">Accés total</span>
         </button>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA SELECCIÓ MASIA ── -->
+  <div id="screen-masia" hidden>
+    <img src="src/assets/logo-uauu-black.png" alt="Uauu Digital" class="users-brand-logo">
+    <div class="users-inner">
+      <div class="users-heading-wrap">
+        <h1 class="users-title">Quina masia?</h1>
+        <p class="users-sub">Selecciona la masia per continuar</p>
+      </div>
+      <div class="users-grid">
+        <button class="user-card" data-masia="ca-nalzina">
+          <div class="user-card-icon">
+            <img src="src/assets/logo-ca-nalzina.png" alt="Ca l'Alzina" class="masia-card-logo">
+          </div>
+          <span class="user-card-name">Ca l'Alzina</span>
+        </button>
+        <button class="user-card" data-masia="can-macia">
+          <div class="user-card-icon">
+            <img src="src/assets/logo-can-macia.png" alt="Can Macià" class="masia-card-logo">
+          </div>
+          <span class="user-card-name">Can Macià</span>
+        </button>
+        <button class="user-card" data-masia="castell-de-tous">
+          <div class="user-card-icon">
+            <img src="src/assets/logo-castell-de-tous.png" alt="Castell de Tous" class="masia-card-logo">
+          </div>
+          <span class="user-card-name">Castell de Tous</span>
+        </button>
+        <button class="user-card" data-masia="mas-vivencs">
+          <div class="user-card-icon">
+            <img src="src/assets/logo-mas-vivencs.png" alt="Mas Vivencs" class="masia-card-logo">
+          </div>
+          <span class="user-card-name">Mas Vivencs</span>
+        </button>
       </div>
     </div>
   </div>

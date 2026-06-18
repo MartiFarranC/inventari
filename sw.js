@@ -1,8 +1,9 @@
-const CACHE = 'uauu-inv-v4';
+const CACHE = 'uauu-inv-v5';
 
 const ASSETS = [
   './',
   './index.html',
+  './favicon.ico',
   './src/assets/css/app.css',
   './src/main.js',
   './manifest.json',

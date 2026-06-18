@@ -10,6 +10,7 @@ const STORAGE_ITEMS       = 'uauu_inv_items';
 const STORAGE_CATS        = 'uauu_inv_cats';
 const STORAGE_ORDERS      = 'uauu_inv_orders';
 const STORAGE_CAT_EXTRA   = 'uauu_inv_catalog_extra';
+const STORAGE_MASIA       = 'uauu_inv_masia';
 
 const STATUS_LABELS = {
   pendent:      'Pendent',
@@ -46,6 +47,7 @@ const state = {
   searchOpen:  false,
   selColor:    CAT_COLORS[0],
   user:        null,
+  masia:       null,
   catalog:     [],
   catalogReady: false,
   orders:      [],
@@ -108,20 +110,45 @@ function applyRole(name) {
 function selectUser(name) {
   state.user = name;
   localStorage.setItem('uauu_inv_user', name);
-  document.getElementById('user-pill-name').textContent = name;
 
   const screen = document.getElementById('screen-users');
   screen.classList.add('leaving');
   setTimeout(() => { screen.hidden = true; }, 400);
 
-  applyRole(name);
+  const role = ROLE_MAP[name] || 'comensal';
+  if (role === 'comensal') {
+    const masiaSc = document.getElementById('screen-masia');
+    masiaSc.hidden = false;
+    void masiaSc.offsetWidth;
+  } else {
+    document.getElementById('user-pill-name').textContent = name;
+    applyRole(name);
+  }
+}
+
+function selectMasia(masiaId) {
+  state.masia = masiaId;
+  localStorage.setItem(STORAGE_MASIA, masiaId);
+
+  const masiaSc = document.getElementById('screen-masia');
+  masiaSc.classList.add('leaving');
+  setTimeout(() => { masiaSc.hidden = true; }, 400);
+
+  document.getElementById('user-pill-name').textContent = state.user;
+  applyRole(state.user);
 }
 
 function showUserScreen() {
-  state.user = null;
+  state.user  = null;
+  state.masia = null;
   localStorage.removeItem('uauu_inv_user');
+  localStorage.removeItem(STORAGE_MASIA);
   document.getElementById('user-pill-name').textContent = '';
   document.body.removeAttribute('data-role');
+
+  const masiaSc = document.getElementById('screen-masia');
+  masiaSc.hidden = true;
+  masiaSc.classList.remove('leaving');
 
   const screen = document.getElementById('screen-users');
   screen.hidden = false;
@@ -130,11 +157,27 @@ function showUserScreen() {
 }
 
 function initUserScreen() {
-  const saved = localStorage.getItem('uauu_inv_user');
-  if (saved) selectUser(saved);
+  const savedUser  = localStorage.getItem('uauu_inv_user');
+  const savedMasia = localStorage.getItem(STORAGE_MASIA);
+
+  if (savedUser) {
+    const role = ROLE_MAP[savedUser] || 'comensal';
+    if (role === 'comensal' && savedMasia) {
+      state.user  = savedUser;
+      state.masia = savedMasia;
+      document.getElementById('screen-users').hidden = true;
+      document.getElementById('user-pill-name').textContent = savedUser;
+      applyRole(savedUser);
+    } else {
+      selectUser(savedUser);
+    }
+  }
 
   document.querySelectorAll('.user-card[data-user]').forEach(card => {
     card.addEventListener('click', () => selectUser(card.dataset.user));
+  });
+  document.querySelectorAll('.user-card[data-masia]').forEach(card => {
+    card.addEventListener('click', () => selectMasia(card.dataset.masia));
   });
 
   document.getElementById('btn-switch-user').addEventListener('click', showUserScreen);
