@@ -877,6 +877,22 @@ body {
 
 /* ── SEND REPORT BUTTON ──────────────────────────────────────────── */
 
+.inv-comment-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 14px 16px;
+  color: var(--white);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  resize: none;
+  box-sizing: border-box;
+  margin-top: 8px;
+}
+.inv-comment-input::placeholder { color: var(--text-dim); }
+.inv-comment-input:focus { outline: none; border-color: rgba(255,255,255,0.25); }
+
 .btn-send-report {
   display: block;
   width: 100%;
@@ -930,6 +946,14 @@ body {
   font-size: 11px;
   font-weight: 300;
   color: var(--text-dim);
+}
+
+.report-comment {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
 }
 
 .report-items-list {

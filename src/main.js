@@ -1176,6 +1176,7 @@ function renderStats() {
         </div>`;
       });
     });
+    html += `<textarea class="inv-comment-input" id="inv-comment" placeholder="Comentari opcional…" rows="3"></textarea>`;
     html += `<button class="btn-send-report" data-action="send-report">Enviar inventari al coordinador</button>`;
     el.innerHTML = html;
     return;
@@ -1254,6 +1255,9 @@ function sendInventoryReport() {
     category: i.category,
   }));
 
+  const commentEl = document.getElementById('inv-comment');
+  const comment = commentEl ? commentEl.value.trim() : '';
+
   const inventariStr = snapshot.map(i => `${i.name}: ${fmtNum(i.quantity)} ${i.unit}`).join(' | ');
   const params = new URLSearchParams({
     action:    'inventari',
@@ -1263,11 +1267,17 @@ function sendInventoryReport() {
     comensal:  '',
     masia:     state.masia || '',
     inventari: inventariStr,
+    comentari: comment,
   });
   sendToSheet(SHEET_APPEND_URL, params.toString());
 
   state.items = [];
   saveItems();
+
+  // Neteja el comentari i el resum immediatament
+  const commentClear = document.getElementById('inv-comment');
+  if (commentClear) commentClear.value = '';
+  renderStats();
 
   showToast('Inventari enviat al coordinador');
   setView('catalog');
@@ -1312,7 +1322,7 @@ async function renderReports() {
     }
 
     el.innerHTML = [...data].reverse().map(r => {
-      const [id, date, hora, comensal, masia, inventari] = r;
+      const [id, date, hora, comensal, masia, inventari, comentari] = r;
       const items = (inventari || '').split(' | ').filter(Boolean);
       const itemsHtml = items.map(item => {
         const sep  = item.indexOf(': ');
@@ -1323,12 +1333,14 @@ async function renderReports() {
           <span class="stats-cat-count">${esc(qty)}</span>
         </div>`;
       }).join('');
+      const comentariHtml = comentari ? `<div class="report-comment">${esc(comentari)}</div>` : '';
       return `
         <div class="report-card">
           <div class="report-card-header">
             <span class="report-date-time">${esc(date)} · ${esc(hora)}</span>
             <span class="report-count-badge">${items.length} productes</span>
           </div>
+          ${comentariHtml}
           <div class="report-items-list">${itemsHtml}</div>
         </div>`;
     }).join('');
