@@ -414,7 +414,6 @@ async function initUserScreen() {
     card.addEventListener('click', () => selectMasia(card.dataset.masia));
   });
   document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
-  document.getElementById('btn-logout').addEventListener('click', showUserScreen);
 }
 
 // ── CATALOG AUTOCOMPLETE ───────────────────────────────────────────
@@ -2067,6 +2066,7 @@ function init() {
   loadData();
   render();
   initUserScreen();
+  document.getElementById('btn-logout').addEventListener('click', showUserScreen);
 
   // Search (Comensal only)
   document.getElementById('btn-search').addEventListener('click', toggleSearch);
