@@ -20,6 +20,7 @@ import {
   renderUsers, updateUserMasiaVisibility,
 } from './users.js';
 import { renderStats, renderStatsStrip, renderReports, sendInventoryReport } from './stats.js';
+import { renderCasamentsView } from './casaments.js';
 
 // ── RENDER ───────────────────────────────────────────────────────────
 
@@ -116,8 +117,9 @@ export function setView(view) {
   if (view === 'cats')    renderCats();
   if (view === 'orders')  renderOrders();
   if (view === 'catalog') renderCatalogView();
-  if (view === 'reports') renderReports();
-  if (view === 'users')   renderUsers();
+  if (view === 'reports')   renderReports();
+  if (view === 'casaments') renderCasamentsView();
+  if (view === 'users')     renderUsers();
 }
 
 export function toggleSearch() {
