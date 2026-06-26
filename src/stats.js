@@ -301,7 +301,7 @@ export async function renderReports() {
       return;
     }
 
-    const masiaIdx = findCol(headers, 'masia');
+    const masiaIdx = findCol(headers, ['masia']);
     let data = rows.slice(1).filter(r => r.length > 1 && r[0]);
 
     if (role === 'comensal' && state.masia && masiaIdx >= 0) {
